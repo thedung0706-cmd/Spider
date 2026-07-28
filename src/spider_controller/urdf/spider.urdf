@@ -1,0 +1,179 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="spider">
+
+  <!-- ============================== -->
+  <!-- 1. THÂN ROBOT (base_link) -->
+  <!-- ============================== -->
+  <link name="base_link">
+    <!-- Hình ảnh hiển thị -->
+    <visual>
+      <geometry><cylinder radius="0.1" length="0.05"/></geometry>
+      <material name="dark_gray"><color rgba="0.3 0.3 0.3 1"/></material>
+    </visual>
+    <!-- Vỏ va chạm -->
+    <collision>
+      <geometry><cylinder radius="0.1" length="0.05"/></geometry>
+    </collision>
+    <!-- Trọng lượng và Quán tính -->
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.0013" ixy="0.0" ixz="0.0" iyy="0.0013" iyz="0.0" izz="0.0025"/>
+    </inertial>
+  </link>
+
+  <!-- ============================== -->
+  <!-- 2. KHUÔN ĐÚC CHÂN (đã tích hợp vật lý) -->
+  <!-- ============================== -->
+  <xacro:macro name="leg" params="prefix x y angle">
+    
+    <!-- LINK: HÔNG (Coxa) -->
+    <link name="coxa_${prefix}">
+      <visual>
+        <geometry><box size="0.04 0.04 0.04"/></geometry>
+        <material name="red"><color rgba="1 0 0 1"/></material>
+      </visual>
+      <collision>
+        <geometry><box size="0.04 0.04 0.04"/></geometry>
+      </collision>
+      <inertial>
+        <mass value="0.05"/>
+        <inertia ixx="0.00001" ixy="0.0" ixz="0.0" iyy="0.00001" iyz="0.0" izz="0.00001"/>
+      </inertial>
+    </link>
+
+    <joint name="joint_coxa_${prefix}" type="revolute">
+      <parent link="base_link"/>
+      <child link="coxa_${prefix}"/>
+      <origin xyz="${x} ${y} 0" rpy="0 0 ${angle}"/>
+      <axis xyz="0 0 1"/>
+      <limit lower="-1.57" upper="1.57" effort="10" velocity="1"/>
+    </joint>
+
+    <!-- LINK: ĐÙI (Femur) -->
+    <link name="femur_${prefix}">
+      <visual>
+        <origin xyz="0.04 0 0" rpy="0 0 0"/>
+        <geometry><box size="0.08 0.03 0.03"/></geometry>
+        <material name="dark_gray"/>
+      </visual>
+      <collision>
+        <origin xyz="0.04 0 0" rpy="0 0 0"/>
+        <geometry><box size="0.08 0.03 0.03"/></geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.04 0 0" rpy="0 0 0"/>
+        <mass value="0.1"/>
+        <inertia ixx="0.00002" ixy="0.0" ixz="0.0" iyy="0.00006" iyz="0.0" izz="0.00006"/>
+      </inertial>
+    </link>
+
+    <joint name="joint_femur_${prefix}" type="revolute">
+      <parent link="coxa_${prefix}"/>
+      <child link="femur_${prefix}"/>
+      <origin xyz="0.02 0 0" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <limit lower="-1.57" upper="1.57" effort="10" velocity="1"/>
+    </joint>
+
+    <!-- LINK: CẲNG CHÂN (Tibia) -->
+    <link name="tibia_${prefix}">
+      <visual>
+        <origin xyz="0.06 0 0" rpy="0 0 0"/>
+        <geometry><box size="0.12 0.02 0.02"/></geometry>
+        <material name="red"/>
+      </visual>
+      <collision>
+        <origin xyz="0.06 0 0" rpy="0 0 0"/>
+        <geometry><box size="0.12 0.02 0.02"/></geometry>
+      </collision>
+      <inertial>
+        <origin xyz="0.06 0 0" rpy="0 0 0"/>
+        <mass value="0.05"/>
+        <inertia ixx="0.00001" ixy="0.0" ixz="0.0" iyy="0.00006" iyz="0.0" izz="0.00006"/>
+      </inertial>
+    </link>
+
+    <joint name="joint_tibia_${prefix}" type="revolute">
+      <parent link="femur_${prefix}"/>
+      <child link="tibia_${prefix}"/>
+      <origin xyz="0.08 0 0" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+      <limit lower="-1.57" upper="1.57" effort="10" velocity="1"/>
+    </joint>
+
+  </xacro:macro>
+    <!-- Gọi 3 chân bên Phải -->
+  <!-- Gọi 3 chân bên Phải -->
+  <!-- Gọi 3 chân bên Phải -->
+  <!-- Gọi 3 chân bên Phải (Góc ÂM để chĩa ra ngoài) -->
+  <xacro:leg prefix="R1" x="0.0866" y="-0.05" angle="-0.523"/> 
+  <xacro:leg prefix="R2" x="0.0"     y="-0.1"  angle="-1.571"/>
+  <xacro:leg prefix="R3" x="-0.0866" y="-0.05" angle="-2.618"/>
+
+  <!-- Gọi 3 chân bên Trái (Góc DƯƠNG để chĩa ra ngoài) -->
+  <xacro:leg prefix="L1" x="0.0866" y="0.05"  angle="0.523"/> 
+  <xacro:leg prefix="L2" x="0.0"     y="0.1"   angle="1.571"/>
+  <xacro:leg prefix="L3" x="-0.0866" y="0.05"  angle="2.618"/>
+ <!-- ============================================== -->
+  <!-- 3. CƠ BẮP ẢO (ROS 2 CONTROL) & GAZEBO SIM PLUGIN -->
+  -- ============================================== -->
+
+  <!-- Định nghĩa Macro cấu hình điều khiển cho từng chân -->
+  <xacro:macro name="leg_control" params="prefix">
+    <joint name="joint_coxa_${prefix}">
+      <command_interface name="position">
+        <param name="min">-1.57</param>
+        <param name="max">1.57</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="joint_femur_${prefix}">
+      <command_interface name="position">
+        <param name="min">-1.57</param>
+        <param name="max">1.57</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="joint_tibia_${prefix}">
+      <command_interface name="position">
+        <param name="min">-1.57</param>
+        <param name="max">1.57</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- Bảng mạch chính ROS 2 Control (Chỉ mở 1 lần duy nhất) -->
+  <ros2_control name="GazeboSimSystem" type="system">
+    <hardware>
+      <plugin>gz_ros2_control/GazeboSimSystem</plugin>
+    </hardware>
+    
+    <!-- Gọi macro cho 6 chân -->
+    <xacro:leg_control prefix="R1"/>
+    <xacro:leg_control prefix="R2"/>
+    <xacro:leg_control prefix="R3"/>
+    <xacro:leg_control prefix="L1"/>
+    <xacro:leg_control prefix="L2"/>
+    <xacro:leg_control prefix="L3"/>
+  </ros2_control>
+
+  <!-- Plugin kết nối Gazebo Sim -->
+  <gazebo>
+    <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+      <parameters>$(find spider_controller)/config/controllers.yaml</parameters>
+    </plugin>
+  </gazebo>
+
+</robot>
