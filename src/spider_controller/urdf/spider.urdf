@@ -1,32 +1,28 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="spider">
 
-  <!-- ============================== -->
-  <!-- 1. THÂN ROBOT (base_link) -->
-  <!-- ============================== -->
+  <!-- DUMMY LINK -->
+  <link name="dummy_link"/>
+  <joint name="dummy_joint" type="fixed">
+    <parent link="dummy_link"/>
+    <child link="base_link"/>
+  </joint>
+
   <link name="base_link">
-    <!-- Hình ảnh hiển thị -->
     <visual>
       <geometry><cylinder radius="0.1" length="0.05"/></geometry>
       <material name="dark_gray"><color rgba="0.3 0.3 0.3 1"/></material>
     </visual>
-    <!-- Vỏ va chạm -->
     <collision>
       <geometry><cylinder radius="0.1" length="0.05"/></geometry>
     </collision>
-    <!-- Trọng lượng và Quán tính -->
     <inertial>
       <mass value="0.5"/>
       <inertia ixx="0.0013" ixy="0.0" ixz="0.0" iyy="0.0013" iyz="0.0" izz="0.0025"/>
     </inertial>
   </link>
 
-  <!-- ============================== -->
-  <!-- 2. KHUÔN ĐÚC CHÂN (đã tích hợp vật lý) -->
-  <!-- ============================== -->
   <xacro:macro name="leg" params="prefix x y angle">
-    
-    <!-- LINK: HÔNG (Coxa) -->
     <link name="coxa_${prefix}">
       <visual>
         <geometry><box size="0.04 0.04 0.04"/></geometry>
@@ -49,7 +45,6 @@
       <limit lower="-1.57" upper="1.57" effort="10" velocity="1"/>
     </joint>
 
-    <!-- LINK: ĐÙI (Femur) -->
     <link name="femur_${prefix}">
       <visual>
         <origin xyz="0.04 0 0" rpy="0 0 0"/>
@@ -75,7 +70,6 @@
       <limit lower="-1.57" upper="1.57" effort="10" velocity="1"/>
     </joint>
 
-    <!-- LINK: CẲNG CHÂN (Tibia) -->
     <link name="tibia_${prefix}">
       <visual>
         <origin xyz="0.06 0 0" rpy="0 0 0"/>
@@ -100,30 +94,20 @@
       <axis xyz="0 1 0"/>
       <limit lower="-1.57" upper="1.57" effort="10" velocity="1"/>
     </joint>
-
   </xacro:macro>
-    <!-- Gọi 3 chân bên Phải -->
-  <!-- Gọi 3 chân bên Phải -->
-  <!-- Gọi 3 chân bên Phải -->
-  <!-- Gọi 3 chân bên Phải (Góc ÂM để chĩa ra ngoài) -->
+
   <xacro:leg prefix="R1" x="0.0866" y="-0.05" angle="-0.523"/> 
   <xacro:leg prefix="R2" x="0.0"     y="-0.1"  angle="-1.571"/>
   <xacro:leg prefix="R3" x="-0.0866" y="-0.05" angle="-2.618"/>
-
-  <!-- Gọi 3 chân bên Trái (Góc DƯƠNG để chĩa ra ngoài) -->
   <xacro:leg prefix="L1" x="0.0866" y="0.05"  angle="0.523"/> 
   <xacro:leg prefix="L2" x="0.0"     y="0.1"   angle="1.571"/>
   <xacro:leg prefix="L3" x="-0.0866" y="0.05"  angle="2.618"/>
- <!-- ============================================== -->
-  <!-- 3. CƠ BẮP ẢO (ROS 2 CONTROL) & GAZEBO SIM PLUGIN -->
-  -- ============================================== -->
 
-  <!-- Định nghĩa Macro cấu hình điều khiển cho từng chân -->
   <xacro:macro name="leg_control" params="prefix">
     <joint name="joint_coxa_${prefix}">
-      <command_interface name="position">
-        <param name="min">-1.57</param>
-        <param name="max">1.57</param>
+      <command_interface name="effort">
+        <param name="min">-10</param>
+        <param name="max">10</param>
       </command_interface>
       <state_interface name="position">
         <param name="initial_value">0.0</param>
@@ -132,9 +116,9 @@
     </joint>
 
     <joint name="joint_femur_${prefix}">
-      <command_interface name="position">
-        <param name="min">-1.57</param>
-        <param name="max">1.57</param>
+      <command_interface name="effort">
+        <param name="min">-10</param>
+        <param name="max">10</param>
       </command_interface>
       <state_interface name="position">
         <param name="initial_value">0.0</param>
@@ -143,9 +127,9 @@
     </joint>
 
     <joint name="joint_tibia_${prefix}">
-      <command_interface name="position">
-        <param name="min">-1.57</param>
-        <param name="max">1.57</param>
+      <command_interface name="effort">
+        <param name="min">-10</param>
+        <param name="max">10</param>
       </command_interface>
       <state_interface name="position">
         <param name="initial_value">0.0</param>
@@ -154,13 +138,11 @@
     </joint>
   </xacro:macro>
 
-  <!-- Bảng mạch chính ROS 2 Control (Chỉ mở 1 lần duy nhất) -->
   <ros2_control name="GazeboSimSystem" type="system">
     <hardware>
       <plugin>gz_ros2_control/GazeboSimSystem</plugin>
     </hardware>
     
-    <!-- Gọi macro cho 6 chân -->
     <xacro:leg_control prefix="R1"/>
     <xacro:leg_control prefix="R2"/>
     <xacro:leg_control prefix="R3"/>
@@ -169,11 +151,76 @@
     <xacro:leg_control prefix="L3"/>
   </ros2_control>
 
-  <!-- Plugin kết nối Gazebo Sim -->
   <gazebo>
     <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
       <parameters>$(find spider_controller)/config/controllers.yaml</parameters>
     </plugin>
+  </gazebo>
+
+  <link name="camera_link">
+    <visual>
+      <geometry>
+        <box size="0.02 0.05 0.02"/>
+      </geometry>
+      <material name="red">
+        <color rgba="1.0 0.0 0.0 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.02 0.05 0.02"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
+
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <origin xyz="0.15 0 0.05" rpy="0 0 0"/> 
+  </joint>
+
+  <gazebo reference="camera_link">
+    <sensor type="camera" name="spider_camera">
+      <update_rate>30.0</update_rate>
+      <camera name="head">
+        <horizontal_fov>1.3962634</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.02</near>
+          <far>300</far>
+        </clip>
+      </camera>
+      <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+        <alwaysOn>true</alwaysOn>
+        <updateRate>0.0</updateRate>
+        <cameraName>spider_camera</cameraName>
+        <imageTopicName>/camera/image_raw</imageTopicName>
+        <cameraInfoTopicName>/camera/camera_info</cameraInfoTopicName>
+        <frameName>camera_link</frameName>
+      </plugin>
+    </sensor>
+    <material>Gazebo/Red</material>
+  </gazebo>
+
+  <!-- IMU SENSOR -->
+  <gazebo reference="base_link">
+    <sensor name="spider_imu" type="imu">
+      <always_on>true</always_on>
+      <update_rate>100</update_rate>
+      <plugin filename="libgazebo_ros_imu_sensor.so" name="imu_plugin">
+        <ros>
+          <remapping>~/out:=imu</remapping>
+        </ros>
+      </plugin>
+    </sensor>
   </gazebo>
 
 </robot>

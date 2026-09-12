@@ -1,94 +1,55 @@
-import rclpy
-from rclpy.node import Node
 import math
+import numpy as np
 
-from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
-from builtin_interfaces.msg import Duration
-
-class HexapodIKNode(Node):
+class HexapodRTMG:
     def __init__(self):
-        super().__init__('hexapod_ik_node')
-        
-        self.publisher_ = self.create_publisher(
-            JointTrajectory, 
-            '/joint_trajectory_controller/joint_trajectory', 
-            10
-        )
-        
-        self.timer = self.create_timer(0.05, self.timer_callback)
-        self.time_counter = 0.0
-        self.get_logger().info("Hexapod Inverse Kinematics Node has been started. Sending commands to Gazebo!")
+        # Thông số cấu hình cơ khí của robot
+        self.l_coxa = 0.05
+        self.l_femur = 0.08
+        self.l_tibia = 0.12
+        self.clearance_h = 0.07  # Khoảng sáng gầm an toàn khi nhấc chân
 
     def calculate_ik(self, x, y, z):
-        l_coxa = 0.05
-        l_femur = 0.08
-        l_tibia = 0.12
-
+        # Lõi Động học ngược (IK) cũ được giữ nguyên vẹn
         theta_coxa = math.atan2(y, x)
-        r = math.sqrt(x**2 + y**2) - l_coxa
+        r = math.sqrt(x**2 + y**2) - self.l_coxa
         s = z 
 
         d = math.sqrt(r**2 + s**2)
-        if d > (l_femur + l_tibia):
-            d = l_femur + l_tibia 
+        if d > (self.l_femur + self.l_tibia):
+            d = self.l_femur + self.l_tibia 
 
-        cos_tibia = (l_femur**2 + l_tibia**2 - d**2) / (2 * l_femur * l_tibia)
+        cos_tibia = (self.l_femur**2 + self.l_tibia**2 - d**2) / (2 * self.l_femur * self.l_tibia)
         cos_tibia = max(-1.0, min(1.0, cos_tibia)) 
         theta_tibia = math.acos(cos_tibia) - math.pi 
 
         alpha = math.atan2(s, r)
-        cos_beta = (l_femur**2 + d**2 - l_tibia**2) / (2 * l_femur * d)
+        cos_beta = (self.l_femur**2 + d**2 - self.l_tibia**2) / (2 * self.l_femur * d)
         cos_beta = max(-1.0, min(1.0, cos_beta))
         beta = math.acos(cos_beta)
         theta_femur = alpha + beta
 
         return theta_coxa, theta_femur, theta_tibia
 
-    def timer_callback(self):
-        self.time_counter += 0.05
+    def bezier_swing_trajectory(self, t, P0, P3):
+        # Quỹ đạo Pha vung (Swing Phase) bằng đường cong Bézier bậc 3
+        P1 = np.array([P0[0], P0[1], P0[2] + self.clearance_h])
+        P2 = np.array([P3[0], P3[1], P3[2] + self.clearance_h])
         
-        msg = JointTrajectory()
-        msg.header.stamp.sec = 0
-        msg.header.stamp.nanosec = 0
-        
-        point = JointTrajectoryPoint()
-        point.time_from_start = Duration(sec=0, nanosec=50000000) 
-        
-        legs = ['R1', 'R2', 'R3', 'L1', 'L2', 'L3']
-        
-        joint_names = []
-        joint_positions = []
+        # Phương trình nội suy Bézier
+        pos = ((1 - t)**3) * P0 + 3 * ((1 - t)**2) * t * P1 + 3 * (1 - t) * (t**2) * P2 + (t**3) * P3
+        return pos
 
-        for i, leg in enumerate(legs):
-            phase = math.pi if i % 2 == 0 else 0.0
-            
-            x_target = 0.18 + 0.02 * math.sin(self.time_counter * 3.0 + phase)
-            y_target = -0.08 if 'R' in leg else 0.08
-            z_target = -0.05 + 0.02 * max(0, math.cos(self.time_counter * 3.0 + phase)) 
+    def stance_trajectory(self, t, P_start, v_lin, w_z, leg_pos):
+        # Quỹ đạo Pha chống (Stance Phase) ngược hướng tịnh tiến
+        delta_p_rot = np.array([-leg_pos[1] * w_z, leg_pos[0] * w_z, 0.0])
+        pos = P_start + (-np.array([v_lin[0], v_lin[1], 0]) + delta_p_rot) * t
+        return pos
 
-            c_angle, f_angle, t_angle = self.calculate_ik(x_target, y_target, z_target)
-            if 'L' in leg:
-                f_angle = -f_angle
-                t_angle = -t_angle
-
-            joint_names.extend([f'joint_coxa_{leg}', f'joint_femur_{leg}', f'joint_tibia_{leg}'])
-            joint_positions.extend([c_angle, f_angle, t_angle])
-
-        msg.joint_names = joint_names
-        point.positions = joint_positions
-        msg.points = [point]
-
-        self.publisher_.publish(msg)
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = HexapodIKNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    node.destroy_node()
-    rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()
+    def get_18_joint_references(self, target_positions):
+        # Hàm cấp 18 góc quay tham chiếu cho DecAP và mạng PPO
+        joint_refs = []
+        for pos in target_positions:
+            c, f, t_angle = self.calculate_ik(pos[0], pos[1], pos[2])
+            joint_refs.extend([c, f, t_angle])
+        return np.array(joint_refs, dtype=np.float32)
