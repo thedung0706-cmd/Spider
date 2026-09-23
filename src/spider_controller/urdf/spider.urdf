@@ -22,7 +22,7 @@
     </inertial>
   </link>
 
-  <xacro:macro name="leg" params="prefix x y angle">
+  <xacro:macro name="leg" params="prefix x y angle coxa_dir">
     <link name="coxa_${prefix}">
       <visual>
         <geometry><box size="0.04 0.04 0.04"/></geometry>
@@ -41,7 +41,7 @@
       <parent link="base_link"/>
       <child link="coxa_${prefix}"/>
       <origin xyz="${x} ${y} 0" rpy="0 0 ${angle}"/>
-      <axis xyz="0 0 1"/>
+      <axis xyz="0 0 ${coxa_dir}"/>
       <limit lower="-1.57" upper="1.57" effort="10" velocity="1"/>
     </joint>
 
@@ -66,7 +66,8 @@
       <parent link="coxa_${prefix}"/>
       <child link="femur_${prefix}"/>
       <origin xyz="0.02 0 0" rpy="0 0 0"/>
-      <axis xyz="0 1 0"/>
+      <!-- Đảo chiều trục Y thành âm để ép đùi gập xuống -->
+      <axis xyz="0 -1 0"/>
       <limit lower="-1.57" upper="1.57" effort="10" velocity="1"/>
     </joint>
 
@@ -91,17 +92,19 @@
       <parent link="femur_${prefix}"/>
       <child link="tibia_${prefix}"/>
       <origin xyz="0.08 0 0" rpy="0 0 0"/>
-      <axis xyz="0 1 0"/>
+      <!-- Đảo chiều trục Y thành âm để cẳng chân cắm xuống đất -->
+      <axis xyz="0 -1 0"/>
       <limit lower="-1.57" upper="1.57" effort="10" velocity="1"/>
     </joint>
   </xacro:macro>
 
-  <xacro:leg prefix="R1" x="0.0866" y="-0.05" angle="-0.523"/> 
-  <xacro:leg prefix="R2" x="0.0"     y="-0.1"  angle="-1.571"/>
-  <xacro:leg prefix="R3" x="-0.0866" y="-0.05" angle="-2.618"/>
-  <xacro:leg prefix="L1" x="0.0866" y="0.05"  angle="0.523"/> 
-  <xacro:leg prefix="L2" x="0.0"     y="0.1"   angle="1.571"/>
-  <xacro:leg prefix="L3" x="-0.0866" y="0.05"  angle="2.618"/>
+  <xacro:leg prefix="R1" x="0.0866" y="-0.05" angle="-0.523" coxa_dir="1"/> 
+  <xacro:leg prefix="R2" x="0.0"    y="-0.1"  angle="-1.571" coxa_dir="1"/>
+  <xacro:leg prefix="R3" x="-0.0866" y="-0.05" angle="-2.618" coxa_dir="1"/>
+  
+  <xacro:leg prefix="L1" x="0.0866" y="0.05"  angle="0.523" coxa_dir="-1"/> 
+  <xacro:leg prefix="L2" x="0.0"    y="0.1"   angle="1.571" coxa_dir="-1"/>
+  <xacro:leg prefix="L3" x="-0.0866" y="0.05"  angle="2.618" coxa_dir="-1"/>
 
   <xacro:macro name="leg_control" params="prefix">
     <joint name="joint_coxa_${prefix}">
@@ -142,7 +145,6 @@
     <hardware>
       <plugin>gz_ros2_control/GazeboSimSystem</plugin>
     </hardware>
-    
     <xacro:leg_control prefix="R1"/>
     <xacro:leg_control prefix="R2"/>
     <xacro:leg_control prefix="R3"/>
@@ -152,24 +154,18 @@
   </ros2_control>
 
   <gazebo>
-    <plugin filename="libgz_ros2_control-system.so" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
+    <plugin filename="gz_ros2_control-system" name="gz_ros2_control::GazeboSimROS2ControlPlugin">
       <parameters>$(find spider_controller)/config/controllers.yaml</parameters>
     </plugin>
   </gazebo>
 
   <link name="camera_link">
     <visual>
-      <geometry>
-        <box size="0.02 0.05 0.02"/>
-      </geometry>
-      <material name="red">
-        <color rgba="1.0 0.0 0.0 1.0"/>
-      </material>
+      <geometry><box size="0.02 0.05 0.02"/></geometry>
+      <material name="red"><color rgba="1.0 0.0 0.0 1.0"/></material>
     </visual>
     <collision>
-      <geometry>
-        <box size="0.02 0.05 0.02"/>
-      </geometry>
+      <geometry><box size="0.02 0.05 0.02"/></geometry>
     </collision>
     <inertial>
       <mass value="0.01"/>
@@ -186,6 +182,9 @@
   <gazebo reference="camera_link">
     <sensor type="camera" name="spider_camera">
       <update_rate>30.0</update_rate>
+      <topic>camera/image_raw</topic>
+      <always_on>true</always_on>
+      <visualize>true</visualize>
       <camera name="head">
         <horizontal_fov>1.3962634</horizontal_fov>
         <image>
@@ -198,28 +197,16 @@
           <far>300</far>
         </clip>
       </camera>
-      <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
-        <alwaysOn>true</alwaysOn>
-        <updateRate>0.0</updateRate>
-        <cameraName>spider_camera</cameraName>
-        <imageTopicName>/camera/image_raw</imageTopicName>
-        <cameraInfoTopicName>/camera/camera_info</cameraInfoTopicName>
-        <frameName>camera_link</frameName>
-      </plugin>
     </sensor>
     <material>Gazebo/Red</material>
   </gazebo>
 
-  <!-- IMU SENSOR -->
   <gazebo reference="base_link">
     <sensor name="spider_imu" type="imu">
       <always_on>true</always_on>
-      <update_rate>100</update_rate>
-      <plugin filename="libgazebo_ros_imu_sensor.so" name="imu_plugin">
-        <ros>
-          <remapping>~/out:=imu</remapping>
-        </ros>
-      </plugin>
+      <update_rate>100.0</update_rate>
+      <visualize>true</visualize>
+      <topic>imu</topic>
     </sensor>
   </gazebo>
 

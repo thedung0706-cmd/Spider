@@ -15,7 +15,6 @@ def generate_launch_description():
     brick_file = os.path.join(pkg_share, 'worlds', 'brick.sdf')
     controller_config_file = os.path.join(pkg_share, 'config', 'controllers.yaml')
     
-    # Dùng Command chuẩn công nghiệp để ép hệ thống gọi engine Xacro biên dịch đường dẫn tuyệt đối
     robot_description = {'robot_description': Command(['xacro ', urdf_file])}
 
     node_robot_state_publisher = Node(
@@ -38,19 +37,7 @@ def generate_launch_description():
         arguments=['-world', 'empty',
                    '-topic', 'robot_description',
                    '-name', 'hexapod_spider',
-                   '-z', '0.1'],
-        output='screen'
-    )
-
-    spawn_brick = Node(
-        package='ros_gz_sim',
-        executable='create',
-        arguments=['-world', 'empty',
-                   '-file', brick_file,
-                   '-name', 'obstacle_brick',
-                   '-x', '0.5',
-                   '-y', '0.0',
-                   '-z', '0.025'],
+                   '-z', '0.0'], # Đã hạ xuống 0.0 để nằm bẹp dưới đất
         output='screen'
     )
 
@@ -61,7 +48,6 @@ def generate_launch_description():
         output="screen",
     )
 
-    # ĐIỂM MỚI: Gọi bộ điều khiển mô-men xoắn thay vì quỹ đạo vị trí
     spawn_controller = Node(
         package="controller_manager",
         executable="spawner",
@@ -73,7 +59,6 @@ def generate_launch_description():
         node_robot_state_publisher,
         start_gazebo_cmd,
         spawn_robot,
-        spawn_brick,
-        TimerAction(period=3.0, actions=[spawn_broadcaster]),
-        TimerAction(period=5.0, actions=[spawn_controller])
+        TimerAction(period=1.0, actions=[spawn_broadcaster]),
+        TimerAction(period=2.0, actions=[spawn_controller])
     ])
